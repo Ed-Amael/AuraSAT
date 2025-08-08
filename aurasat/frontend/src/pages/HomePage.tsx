@@ -29,7 +29,11 @@ export default function HomePage() {
         body: JSON.stringify({ address })
       });
       const data = await res.json();
-      setCoverage(data.covered ? `Covered ✓ — Suggested plan: ${data.planSuggestion}` : 'Not yet covered — Join waitlist');
+      setCoverage(
+        data.covered
+          ? `Covered ✓${data.planSuggestion ? ' — Suggested plan: ' + data.planSuggestion : ''}`
+          : 'Not yet covered — Join waitlist'
+      );
     } catch { setCoverage('Unable to check coverage.'); }
   }
 

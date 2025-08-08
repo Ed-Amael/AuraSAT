@@ -41,7 +41,7 @@ export default function SpeedTestPage() {
     <div className="grid">
       <section className="card">
         <h2 className="section-title">Download speed test</h2>
-        <p className="muted">Starts a {50} MB download from the AuraSAT server and estimates throughput.</p>
+        <p className="muted">Starts a 50 MB download from the AuraSAT server and estimates throughput.</p>
         <div className="row">
           <button className="button" onClick={runTest} disabled={running}>{running ? 'Running…' : 'Run test'}</button>
           {mbps !== null && <strong>{mbps.toFixed(1)} Mbps</strong>}
