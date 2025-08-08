@@ -10,17 +10,27 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const zod_1 = require("zod");
 const crypto_1 = require("crypto");
+const helmet_1 = __importDefault(require("helmet"));
+const morgan_1 = __importDefault(require("morgan"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 // Configuration
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 const users = new Map(); // key: email
 const tickets = new Map();
+const newsletter = new Set();
 // Express app
 const app = (0, express_1.default)();
+app.use((0, helmet_1.default)({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+app.use((0, morgan_1.default)('dev'));
 app.use((0, cors_1.default)({ origin: FRONTEND_ORIGIN, credentials: true }));
-app.use(express_1.default.json({ limit: '1mb' }));
+app.use(express_1.default.json({ limit: '10mb' }));
 app.use((0, cookie_parser_1.default)());
+const apiLimiter = (0, express_rate_limit_1.default)({ windowMs: 60000, max: 120 });
+app.use('/api/', apiLimiter);
 // Utilities
 function createToken(payload) {
     return jsonwebtoken_1.default.sign(payload, JWT_SECRET, { expiresIn: '7d' });
@@ -50,32 +60,39 @@ app.get('/api/health', (req, res) => {
 });
 // Plans
 app.get('/api/plans', (req, res) => {
+    const annualDiscount = 0.15; // 15% off yearly
     const plans = [
         {
             id: 'basic',
             name: 'Rural Basic',
             priceMonthlyUsd: 49.99,
+            priceYearlyUsd: +(49.99 * 12 * (1 - annualDiscount)).toFixed(2),
             downMbps: 25,
             upMbps: 3,
             dataCapGb: 150,
+            features: ['Email & browsing', 'Wi‑Fi modem included', 'Basic support'],
             description: 'Reliable connectivity for essential browsing and email in rural areas.'
         },
         {
             id: 'standard',
             name: 'Rural Standard',
             priceMonthlyUsd: 79.99,
+            priceYearlyUsd: +(79.99 * 12 * (1 - annualDiscount)).toFixed(2),
             downMbps: 50,
             upMbps: 10,
             dataCapGb: 350,
+            features: ['HD streaming', 'Work/study from home', 'Priority support'],
             description: 'Stream, study, and work from home with balanced speed and data.'
         },
         {
             id: 'premium',
             name: 'Rural Premium',
             priceMonthlyUsd: 119.99,
+            priceYearlyUsd: +(119.99 * 12 * (1 - annualDiscount)).toFixed(2),
             downMbps: 100,
             upMbps: 20,
             dataCapGb: 800,
+            features: ['4K streaming', 'Multi-user households', 'Priority install'],
             description: 'Best performance for multi-user households and small businesses.'
         }
     ];
@@ -135,10 +152,31 @@ app.post('/api/contact', (req, res) => {
         return res.status(400).json({ error: 'Invalid request', details: parse.error.flatten() });
     }
     const contact = parse.data;
-    // In a real app, enqueue email or CRM integration
-    // For demo, log to server
     console.log('Contact message received:', contact);
     res.json({ ok: true, receivedAt: Date.now() });
+});
+// Newsletter
+const NewsletterSchema = zod_1.z.object({ email: zod_1.z.string().email() });
+app.post('/api/newsletter/subscribe', (req, res) => {
+    const parse = NewsletterSchema.safeParse(req.body);
+    if (!parse.success) {
+        return res.status(400).json({ error: 'Invalid email' });
+    }
+    const email = parse.data.email.toLowerCase();
+    newsletter.add(email);
+    res.json({ ok: true });
+});
+// Coverage checker (mock)
+const CoverageSchema = zod_1.z.object({ address: zod_1.z.string().min(5), lat: zod_1.z.number().optional(), lng: zod_1.z.number().optional() });
+app.post('/api/coverage/check', (req, res) => {
+    const parse = CoverageSchema.safeParse(req.body);
+    if (!parse.success)
+        return res.status(400).json({ error: 'Invalid request' });
+    const { address, lat, lng } = parse.data;
+    // Mock logic: basic coverage if lat/lng present or address length is long
+    const covered = !!lat || !!lng || address.length > 12;
+    const planSuggestion = covered ? (address.toLowerCase().includes('farm') ? 'standard' : 'basic') : null;
+    res.json({ covered, planSuggestion });
 });
 // Auth
 const RegisterSchema = zod_1.z.object({
@@ -267,6 +305,19 @@ app.get('/api/speedtest/download', (req, res) => {
         res.end();
     }
     writeChunk();
+});
+app.post('/api/speedtest/upload', async (req, res) => {
+    const start = Date.now();
+    let bytes = 0;
+    req.on('data', (chunk) => {
+        bytes += chunk.length;
+        if (bytes > 512 * 1024 * 1024)
+            req.destroy(); // hard cap 512MB
+    });
+    req.on('end', () => {
+        const ms = Date.now() - start;
+        res.json({ bytes, ms });
+    });
 });
 // Start server
 app.listen(PORT, () => {

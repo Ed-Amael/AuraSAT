@@ -9,11 +9,12 @@ export default function AppLayout() {
           <Link to="/" className="brand">AuraSAT</Link>
           <nav className="nav">
             <NavLink to="/plans">Plans</NavLink>
+            <NavLink to="/coverage">Coverage</NavLink>
             <NavLink to="/resources">Resources</NavLink>
             <NavLink to="/support">Support</NavLink>
             <NavLink to="/faqs">FAQs</NavLink>
             <NavLink to="/speed-test">Speed Test</NavLink>
-            <NavLink to="/login" className="cta">Login</NavLink>
+            <NavLink to="/account" className="cta">Account</NavLink>
           </nav>
         </div>
       </header>

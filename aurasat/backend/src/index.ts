@@ -5,6 +5,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 
 // Configuration
 const PORT = Number(process.env.PORT || 4000);
@@ -32,12 +35,20 @@ interface SupportTicket {
 
 const users: Map<string, UserRecord> = new Map(); // key: email
 const tickets: Map<string, SupportTicket> = new Map();
+const newsletter: Set<string> = new Set();
 
 // Express app
 const app = express();
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+app.use(morgan('dev'));
 app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 120 });
+app.use('/api/', apiLimiter);
 
 // Utilities
 function createToken(payload: object): string {
@@ -70,32 +81,39 @@ app.get('/api/health', (req, res) => {
 
 // Plans
 app.get('/api/plans', (req, res) => {
+  const annualDiscount = 0.15; // 15% off yearly
   const plans = [
     {
       id: 'basic',
       name: 'Rural Basic',
       priceMonthlyUsd: 49.99,
+      priceYearlyUsd: +(49.99 * 12 * (1 - annualDiscount)).toFixed(2),
       downMbps: 25,
       upMbps: 3,
       dataCapGb: 150,
+      features: ['Email & browsing', 'Wi‑Fi modem included', 'Basic support'],
       description: 'Reliable connectivity for essential browsing and email in rural areas.'
     },
     {
       id: 'standard',
       name: 'Rural Standard',
       priceMonthlyUsd: 79.99,
+      priceYearlyUsd: +(79.99 * 12 * (1 - annualDiscount)).toFixed(2),
       downMbps: 50,
       upMbps: 10,
       dataCapGb: 350,
+      features: ['HD streaming', 'Work/study from home', 'Priority support'],
       description: 'Stream, study, and work from home with balanced speed and data.'
     },
     {
       id: 'premium',
       name: 'Rural Premium',
       priceMonthlyUsd: 119.99,
+      priceYearlyUsd: +(119.99 * 12 * (1 - annualDiscount)).toFixed(2),
       downMbps: 100,
       upMbps: 20,
       dataCapGb: 800,
+      features: ['4K streaming', 'Multi-user households', 'Priority install'],
       description: 'Best performance for multi-user households and small businesses.'
     }
   ];
@@ -159,10 +177,32 @@ app.post('/api/contact', (req, res) => {
     return res.status(400).json({ error: 'Invalid request', details: parse.error.flatten() });
   }
   const contact = parse.data;
-  // In a real app, enqueue email or CRM integration
-  // For demo, log to server
   console.log('Contact message received:', contact);
   res.json({ ok: true, receivedAt: Date.now() });
+});
+
+// Newsletter
+const NewsletterSchema = z.object({ email: z.string().email() });
+app.post('/api/newsletter/subscribe', (req, res) => {
+  const parse = NewsletterSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  const email = parse.data.email.toLowerCase();
+  newsletter.add(email);
+  res.json({ ok: true });
+});
+
+// Coverage checker (mock)
+const CoverageSchema = z.object({ address: z.string().min(5), lat: z.number().optional(), lng: z.number().optional() });
+app.post('/api/coverage/check', (req, res) => {
+  const parse = CoverageSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: 'Invalid request' });
+  const { address, lat, lng } = parse.data;
+  // Mock logic: basic coverage if lat/lng present or address length is long
+  const covered = !!lat || !!lng || address.length > 12;
+  const planSuggestion = covered ? (address.toLowerCase().includes('farm') ? 'standard' : 'basic') : null;
+  res.json({ covered, planSuggestion });
 });
 
 // Auth
@@ -301,6 +341,19 @@ app.get('/api/speedtest/download', (req, res) => {
     res.end();
   }
   writeChunk();
+});
+
+app.post('/api/speedtest/upload', async (req, res) => {
+  const start = Date.now();
+  let bytes = 0;
+  req.on('data', (chunk) => {
+    bytes += chunk.length;
+    if (bytes > 512 * 1024 * 1024) req.destroy(); // hard cap 512MB
+  });
+  req.on('end', () => {
+    const ms = Date.now() - start;
+    res.json({ bytes, ms });
+  });
 });
 
 // Start server

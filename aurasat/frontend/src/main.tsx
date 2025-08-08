@@ -10,6 +10,8 @@ import FaqPage from './pages/FaqPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import SpeedTestPage from './pages/SpeedTestPage';
+import AccountPage from './pages/AccountPage';
+import CoveragePage from './pages/CoveragePage';
 import './ui/global.css';
 
 const container = document.getElementById('root')!;
@@ -27,6 +29,8 @@ root.render(
           <Route path="faqs" element={<FaqPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
+          <Route path="account" element={<AccountPage />} />
+          <Route path="coverage" element={<CoveragePage />} />
           <Route path="speed-test" element={<SpeedTestPage />} />
         </Route>
       </Routes>
