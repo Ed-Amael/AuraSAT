@@ -8,6 +8,8 @@ import { randomUUID } from 'crypto';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import fs from 'fs';
 
 // Configuration
 const PORT = Number(process.env.PORT || 4000);
@@ -355,6 +357,20 @@ app.post('/api/speedtest/upload', async (req, res) => {
     res.json({ bytes, ms });
   });
 });
+
+// Static frontend serving (optional for production)
+if (process.env.SERVE_STATIC === 'true') {
+  const distPath = path.resolve(__dirname, '../../frontend/dist');
+  if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+    console.log('Serving static frontend from', distPath);
+  } else {
+    console.warn('SERVE_STATIC enabled, but dist not found at', distPath);
+  }
+}
 
 // Start server
 app.listen(PORT, () => {

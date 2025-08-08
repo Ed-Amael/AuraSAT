@@ -16,6 +16,14 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:4000
 
+### Single port (production-like)
+```bash
+npm run build
+# copy backend/.env.example to backend/.env and set SERVE_STATIC=true (optional)
+PORT=4000 SERVE_STATIC=true FRONTEND_ORIGIN=http://localhost:4000 npm run start
+```
+- App served at http://localhost:4000
+
 ## Scripts
 - Root
   - `npm run dev`: start backend + frontend concurrently
@@ -54,3 +62,15 @@ Defaults work for local dev.
 - Use a strong `JWT_SECRET`, set cookie `secure` and a proper domain
 - Replace in-memory stores with a database
 - Serve the built frontend (`frontend/dist`) from a static host or a CDN
+
+## Docker
+Build and run with Docker:
+```bash
+docker build -t aurasat .
+docker run -p 4000:4000 -e NODE_ENV=production -e SERVE_STATIC=true -e FRONTEND_ORIGIN=http://localhost:4000 -e JWT_SECRET=change-me-in-prod aurasat
+```
+Or via docker-compose:
+```bash
+docker compose up --build -d
+```
+- App: http://localhost:4000

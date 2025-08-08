@@ -13,6 +13,8 @@ const crypto_1 = require("crypto");
 const helmet_1 = __importDefault(require("helmet"));
 const morgan_1 = __importDefault(require("morgan"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 // Configuration
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
@@ -319,6 +321,20 @@ app.post('/api/speedtest/upload', async (req, res) => {
         res.json({ bytes, ms });
     });
 });
+// Static frontend serving (optional for production)
+if (process.env.SERVE_STATIC === 'true') {
+    const distPath = path_1.default.resolve(__dirname, '../../frontend/dist');
+    if (fs_1.default.existsSync(distPath)) {
+        app.use(express_1.default.static(distPath));
+        app.get('*', (_req, res) => {
+            res.sendFile(path_1.default.join(distPath, 'index.html'));
+        });
+        console.log('Serving static frontend from', distPath);
+    }
+    else {
+        console.warn('SERVE_STATIC enabled, but dist not found at', distPath);
+    }
+}
 // Start server
 app.listen(PORT, () => {
     console.log(`AuraSAT API listening on http://localhost:${PORT}`);
